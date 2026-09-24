@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/Nerdbank.GitVersioning/master/src/Nerdbank.GitVersioning.Schema/version.schema.json",
+  "version": "1.0.0-preview.{height}",
+  "versionHeightOffset": -1,
+  "versionHeightOffsetAppliesTo": "1.0.0-preview",
+  "publicReleaseRefSpec": ["^refs/tags/v{version}$"],
+  "cloudBuild": {
+    "setVersionVariables": true
+  }
+}

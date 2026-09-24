@@ -1,0 +1,90 @@
+name: Build, test, and publish
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore tests/gitversion-versioning-sample.Tests/gitversion-versioning-sample.Tests.csproj
+      - name: Build and test
+        run: dotnet test tests/gitversion-versioning-sample.Tests/gitversion-versioning-sample.Tests.csproj --configuration Release --no-restore
+
+  calculate-version:
+    name: Calculate GitVersion version
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    needs: build-test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install GitVersion
+        run: dotnet tool install --tool-path "$RUNNER_TEMP/gitversion" GitVersion.Tool --version 6.8.2
+      - name: Calculate version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$($RUNNER_TEMP/gitversion/dotnet-gitversion /showvariable SemVer)"
+          fi
+          echo "Calculated version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish application and release notes
+    needs: [build-test, calculate-version]
+    if: (contains(needs.calculate-version.outputs.version, '-preview.') && !startsWith(github.ref, 'refs/tags/v')) || (startsWith(github.ref, 'refs/tags/v') && !contains(needs.calculate-version.outputs.version, '-preview.'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore src/gitversion-versioning-sample.csproj
+      - name: Publish
+        run: dotnet publish src/gitversion-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }}
+      - name: Create release asset
+        run: zip -r "gitversion-${{ needs.calculate-version.outputs.version }}.zip" publish
+      - name: Publish matching Release Drafter draft
+        uses: release-drafter/release-drafter@v7
+        with:
+          config-name: release-drafter.yml
+          version: ${{ needs.calculate-version.outputs.version }}
+          name: v${{ needs.calculate-version.outputs.version }}
+          tag: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.calculate-version.outputs.version) }}
+          publish: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(needs.calculate-version.outputs.version, '-preview.') }}
+          prerelease: ${{ contains(needs.calculate-version.outputs.version, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.calculate-version.outputs.version) }}" "gitversion-${{ needs.calculate-version.outputs.version }}.zip" --clobber

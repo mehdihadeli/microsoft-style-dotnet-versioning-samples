@@ -1,0 +1,95 @@
+name: MinVer sample
+
+on:
+  pull_request:
+    paths:
+      - "minver-versioning-sample/**"
+      - ".github/workflows/minver.yml"
+  push:
+    branches: [main]
+    paths:
+      - "minver-versioning-sample/**"
+      - ".github/workflows/minver.yml"
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: MinVer build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: minver-versioning-sample
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore tests/minver-versioning-sample.Tests/minver-versioning-sample.Tests.csproj
+      - run: dotnet test tests/minver-versioning-sample.Tests/minver-versioning-sample.Tests.csproj --configuration Release --no-restore
+
+  calculate-version:
+    name: Calculate MinVer version
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    needs: build-test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: minver-versioning-sample
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet tool install --tool-path "$RUNNER_TEMP/minver" minver-cli --version 8.0.0
+      - name: Calculate version
+        id: version
+        shell: bash
+        run: |
+          version="$(MINVER_CLI="$RUNNER_TEMP/minver/minver" ./scripts/calculate-version.sh)"
+          echo "Calculated version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: MinVer publish
+    needs: [build-test, calculate-version]
+    if: (!startsWith(github.ref, 'refs/tags/v') && contains(needs.calculate-version.outputs.version, '-')) || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: minver-versioning-sample
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore src/minver-versioning-sample.csproj
+      - run: dotnet publish src/minver-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }}
+      - run: zip -r "minver-${{ needs.calculate-version.outputs.version }}.zip" publish
+      - name: Publish MinVer release
+        uses: release-drafter/release-drafter@v7
+        with:
+          config-name: release-drafter.yml
+          version: ${{ needs.calculate-version.outputs.version }}
+          name: v${{ needs.calculate-version.outputs.version }}
+          tag: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.calculate-version.outputs.version) }}
+          publish: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(needs.calculate-version.outputs.version, '-preview.') }}
+          prerelease: ${{ contains(needs.calculate-version.outputs.version, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload MinVer asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.calculate-version.outputs.version) }}" "minver-${{ needs.calculate-version.outputs.version }}.zip" --clobber

@@ -1,0 +1,89 @@
+name: Build, test, and publish
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  ARCADE_FEED: https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-eng/nuget/v3/index.json
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Configure Arcade feed
+        run: dotnet nuget add source "$ARCADE_FEED" --name dotnet-eng
+      - name: Restore
+        run: dotnet restore tests/arcade-versioning-sample.Tests/arcade-versioning-sample.Tests.csproj
+      - name: Build and test
+        run: dotnet test tests/arcade-versioning-sample.Tests/arcade-versioning-sample.Tests.csproj --configuration Release --no-restore
+
+  calculate-version:
+    name: Calculate Arcade build version
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    needs: build-test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Calculate version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="1.0.0-preview.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "Calculated version: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish application and release notes
+    needs: [build-test, calculate-version]
+    if: (contains(needs.calculate-version.outputs.version, '-preview.') && !startsWith(github.ref, 'refs/tags/v')) || (startsWith(github.ref, 'refs/tags/v') && !contains(needs.calculate-version.outputs.version, '-preview.'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Configure Arcade feed
+        run: dotnet nuget add source "$ARCADE_FEED" --name dotnet-eng
+      - name: Restore
+        run: dotnet restore src/arcade-versioning-sample.csproj
+      - name: Publish
+        run: dotnet publish src/arcade-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }} -p:OfficialBuild=${{ startsWith(github.ref, 'refs/tags/v') }}
+      - name: Create release asset
+        run: zip -r "arcade-${{ needs.calculate-version.outputs.version }}.zip" publish
+      - name: Publish matching Release Drafter draft
+        uses: release-drafter/release-drafter@v7
+        with:
+          config-name: release-drafter.yml
+          version: ${{ needs.calculate-version.outputs.version }}
+          name: v${{ needs.calculate-version.outputs.version }}
+          tag: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.calculate-version.outputs.version) }}
+          publish: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(needs.calculate-version.outputs.version, '-preview.') }}
+          prerelease: ${{ contains(needs.calculate-version.outputs.version, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.calculate-version.outputs.version) }}" "arcade-${{ needs.calculate-version.outputs.version }}.zip" --clobber

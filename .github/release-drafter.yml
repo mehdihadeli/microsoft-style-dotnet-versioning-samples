@@ -1,0 +1,26 @@
+name-template: "$RESOLVED_VERSION"
+tag-template: "$RESOLVED_VERSION"
+include-pre-releases: false
+template: |
+  ## What Changed
+  $CHANGES
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$RESOLVED_VERSION
+categories:
+  - title: Features
+    labels:
+      - feature
+      - feat
+  - title: Enhancements
+    labels:
+      - enhancement
+      - refactor
+  - title: Bug Fixes
+    labels:
+      - fix
+      - bug
+  - title: Other Changes
+    label: misc
+  - title: Excluded changes
+    type: pre-exclude
+    label: skip-changelog
+  - title: Default changes

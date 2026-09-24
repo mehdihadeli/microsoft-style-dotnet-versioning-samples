@@ -1,0 +1,37 @@
+<Solution>
+  <Folder Name="/arcade-versioning-sample/" />
+  <Folder Name="/arcade-versioning-sample/src/">
+    <Project Path="arcade-versioning-sample/src/arcade-versioning-sample.csproj" />
+  </Folder>
+  <Folder Name="/arcade-versioning-sample/tests/">
+    <Project Path="arcade-versioning-sample/tests/arcade-versioning-sample.Tests/arcade-versioning-sample.Tests.csproj" />
+  </Folder>
+  <Folder Name="/gitversion-versioning-sample/" />
+  <Folder Name="/gitversion-versioning-sample/src/">
+    <Project Path="gitversion-versioning-sample/src/gitversion-versioning-sample.csproj" />
+  </Folder>
+  <Folder Name="/gitversion-versioning-sample/tests/">
+    <Project Path="gitversion-versioning-sample/tests/gitversion-versioning-sample.Tests/gitversion-versioning-sample.Tests.csproj" />
+  </Folder>
+  <Folder Name="/minver-versioning-sample/" />
+  <Folder Name="/minver-versioning-sample/src/">
+    <Project Path="minver-versioning-sample/src/minver-versioning-sample.csproj" />
+  </Folder>
+  <Folder Name="/minver-versioning-sample/tests/">
+    <Project Path="minver-versioning-sample/tests/minver-versioning-sample.Tests/minver-versioning-sample.Tests.csproj" />
+  </Folder>
+  <Folder Name="/nerdbank-versioning-sample/" />
+  <Folder Name="/nerdbank-versioning-sample/src/">
+    <Project Path="nerdbank-versioning-sample/src/nerdbank-versioning-sample.csproj" />
+  </Folder>
+  <Folder Name="/nerdbank-versioning-sample/tests/">
+    <Project Path="nerdbank-versioning-sample/tests/nerdbank-versioning-sample.Tests/nerdbank-versioning-sample.Tests.csproj" />
+  </Folder>
+  <Folder Name="/semantic-release-versioning-sample/" />
+  <Folder Name="/semantic-release-versioning-sample/src/">
+    <Project Path="semantic-release-versioning-sample/src/semantic-release-versioning-sample.csproj" />
+  </Folder>
+  <Folder Name="/semantic-release-versioning-sample/tests/">
+    <Project Path="semantic-release-versioning-sample/tests/semantic-release-versioning-sample.Tests/semantic-release-versioning-sample.Tests.csproj" />
+  </Folder>
+</Solution>

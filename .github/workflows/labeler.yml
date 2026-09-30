@@ -1,6 +1,7 @@
 name: Auto Labeler
 
 on:
+  # Required for labeling pull requests from forks.
   pull_request_target:
     types: [opened, reopened, synchronize]
 
@@ -11,8 +12,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+
     steps:
       - name: Apply Release Drafter labels
         uses: release-drafter/release-drafter/autolabeler@v7
-        with:
-          config-name: release-drafter.yml

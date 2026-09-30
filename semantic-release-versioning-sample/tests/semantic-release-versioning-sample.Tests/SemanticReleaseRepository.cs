@@ -128,7 +128,7 @@ internal sealed class SemanticReleaseRepository : IDisposable
     {
         var version = Run("node", "scripts/calculate-version.mjs")
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault() ?? string.Empty;
+            .SingleOrDefault(line => Regex.IsMatch(line, @"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")) ?? string.Empty;
         if (string.IsNullOrWhiteSpace(version))
             throw new InvalidOperationException("semantic-release did not calculate a next release.");
         return version;

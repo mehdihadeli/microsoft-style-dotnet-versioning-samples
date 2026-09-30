@@ -19,6 +19,7 @@ internal static class ProcessRunner
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        process.StartInfo.Environment.Remove("GITHUB_ACTIONS");
         foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
         if (environment is { } value) process.StartInfo.Environment[value.Name] = value.Value;
         process.Start();

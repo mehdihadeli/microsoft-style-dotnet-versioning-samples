@@ -164,6 +164,7 @@ _scratchpads/*
 *.userosscache
 *.sln.docstates
 *.env
+!/version.env
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

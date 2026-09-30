@@ -88,11 +88,12 @@ git push origin v1.0.0-rc.2
 git tag -a v1.0.0 -m "Release 1.0.0"
 git push origin v1.0.0
 ------------
-# 1.0.1-preview.1
-git switch -c feature/add-authurization
+# 1.1.0-preview.1
+git switch -c chore/prepare-1.1.0-preview
+./release-version.sh prepare-train 1.1.0
 git add -A
-git commit -m "feat: add authurization"
-git push -u origin feature/add-authurization
+git commit -m "chore: start 1.1.0 preview train"
+git push -u origin chore/prepare-1.1.0-preview
 ```
 
 ## Local validation
@@ -105,7 +106,7 @@ dotnet build src/gitversion-versioning-sample.csproj -p:Version=$version
 dotnet test tests/gitversion-versioning-sample.Tests/gitversion-versioning-sample.Tests.csproj
 ```
 
-The complete workflow is in [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml), and the version rules are in [`GitVersion.yml`](GitVersion.yml).
+The local and CI calculator is [`scripts/calculate-version.sh`](scripts/calculate-version.sh). The complete workflow is in [`.github/workflows/gitversion.yml`](../.github/workflows/gitversion.yml), and the version rules are in [`GitVersion.yml`](GitVersion.yml).
 
 ## Tradeoffs
 

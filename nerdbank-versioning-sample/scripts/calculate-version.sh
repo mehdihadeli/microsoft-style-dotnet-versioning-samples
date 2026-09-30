@@ -3,58 +3,57 @@ set -euo pipefail
 
 repository_path="${1:-.}"
 nbgv_path="${2:-nbgv}"
+output_mode="${3:-version}"
 
 cd "$repository_path"
 
-"$nbgv_path" get-version -v SemVer2 >/dev/null
+nbgv_version="$("$nbgv_path" get-version -v SemVer2)"
+effective_version="${nbgv_version%%.g*}"
 
-mapfile -t release_tags < <(
-  git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$' || true
-)
+release_tag="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$' | sort -V | tail -n 1 || true)"
 
-if ((${#release_tags[@]} > 0)); then
-  stable_tag="$(printf '%s\n' "${release_tags[@]}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
-  if [[ -n "$stable_tag" ]]; then
-    printf '%s\n' "${stable_tag#v}"
-    exit 0
-  fi
-
-  printf '%s\n' "${release_tags[@]}" | sort -V | tail -n 1 | sed 's/^v//'
-  exit 0
-fi
-
-nearest_stable=""
-nearest_distance=""
-while IFS= read -r tag; do
-  [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
-  distance="$(git rev-list --first-parent --count "$tag..HEAD")"
-  if [[ -z "$nearest_distance" || "$distance" -lt "$nearest_distance" ]]; then
-    nearest_stable="$tag"
-    nearest_distance="$distance"
-  fi
-done < <(git tag --merged HEAD)
-
-if [[ -n "$nearest_stable" ]]; then
-  stable_version="${nearest_stable#v}"
-  IFS=. read -r major minor patch <<<"$stable_version"
-  printf '%s.%s.%s-preview.%s\n' "$major" "$minor" "$((patch + 1))" "$nearest_distance"
-  exit 0
-fi
-
-configured_version="$(sed -nE 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' version.json)"
-if [[ ! "$configured_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-preview\.\{height\}$ ]]; then
-  echo "version.json must use '<major>.<minor>.<patch>-preview.{height}'." >&2
+if [[ -n "$release_tag" && "${release_tag#v}" != "$effective_version" ]]; then
+  echo "Release tag ${release_tag#v} does not match NBGV version $effective_version." >&2
   exit 1
 fi
 
-major="${BASH_REMATCH[1]}"
-minor="${BASH_REMATCH[2]}"
-patch="${BASH_REMATCH[3]}"
-offset="$(sed -nE 's/.*"versionHeightOffset"[[:space:]]*:[[:space:]]*(-?[0-9]+).*/\1/p' version.json)"
-preview_number="$(( $(git rev-list --first-parent --count HEAD) + offset ))"
-if ((preview_number < 1)); then
-  echo "Calculated preview number must be at least 1." >&2
+if [[ "$output_mode" != "github-output" ]]; then
+  printf '%s\n' "$effective_version"
+  exit 0
+fi
+
+commit="$(git rev-parse --short HEAD)"
+version="$effective_version"
+environment="none"
+
+if [[ "${GITHUB_REF:-}" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+  version="${GITHUB_REF_NAME#v}"
+  if [[ "$version" != "$effective_version" ]]; then
+    echo "Release ref $version does not match NBGV version $effective_version." >&2
+    exit 1
+  fi
+  if [[ "$version" == *-rc.* ]]; then
+    version="$version.$(date -u +%y%j).${GITHUB_RUN_NUMBER:?GITHUB_RUN_NUMBER is required}"
+    environment="staging"
+  else
+    environment="production"
+  fi
+elif [[ "${GITHUB_REF:-}" == "refs/heads/main" && "$effective_version" == *-preview.* ]]; then
+  if [[ "$effective_version" =~ -preview\.0(\.|$) ]]; then
+    environment="none"
+  else
+    version="$effective_version.$(date -u +%y%j).${GITHUB_RUN_NUMBER:?GITHUB_RUN_NUMBER is required}"
+    environment="dev"
+  fi
+elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+  echo "Unsupported release tag: ${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}" >&2
   exit 1
 fi
 
-printf '%s.%s.%s-preview.%s\n' "$major" "$minor" "$patch" "$preview_number"
+assembly_version="$($nbgv_path get-version -v AssemblyVersion)"
+informational_version="$version+$commit"
+printf 'version=%s\n' "$version"
+printf 'assembly_version=%s\n' "$assembly_version"
+printf 'informational_version=%s\n' "$informational_version"
+printf 'environment=%s\n' "$environment"
+printf 'commit=%s\n' "$commit"

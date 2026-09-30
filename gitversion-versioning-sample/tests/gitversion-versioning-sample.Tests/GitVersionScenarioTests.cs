@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Text;
-using System.Text.RegularExpressions;
 using Xunit;
 
 namespace gitversion_versioning_sample.Tests;
@@ -8,177 +5,100 @@ namespace gitversion_versioning_sample.Tests;
 public sealed class GitVersionScenarioTests
 {
     [Fact]
-    public void Squash_merged_pull_requests_advance_once_then_tags_control_releases()
+    public void Release_helper_commands_follow_release_scenario()
     {
         using var repository = GitVersionRepository.Create();
+        AssertLocalVersion(repository, "1.0.0-preview.0");
 
         repository.MergePullRequest("feature/customer-export", "feat: add customer export");
-        var previewOne = repository.CalculateEffectiveVersion();
-        Assert.Equal("1.0.0-preview.1", previewOne);
-
+        AssertLocalVersion(repository, "1.0.0-preview.1");
         repository.MergePullRequest("feature/add-auth", "feat: add authentication");
-        var previewTwo = repository.CalculateEffectiveVersion();
+        AssertLocalVersion(repository, "1.0.0-preview.2");
 
-        Assert.Equal("1.0.0-preview.2", previewTwo);
-        Assert.Equal(GetPreviewNumber(previewOne) + 1, GetPreviewNumber(previewTwo));
+        repository.PrepareVersionWithReleaseScript("chore/prepare-1.0.0-rc", "prepare-rc", "1.0.0");
+        repository.MergePullRequest("chore/prepare-1.0.0-rc", "chore: prepare 1.0.0 RC train");
+        AssertReleaseVersion(repository, "1.0.0-rc.1");
+        repository.RunReleaseVersionScript("tag");
+        AssertReleaseVersion(repository, "1.0.0-rc.1");
+        Assert.Contains("v1.0.0-rc.1", repository.TagsAtHead());
 
+        repository.MergePullRequest(
+            "fix/release-candidate",
+            "fix: correct release candidate behavior"
+        );
+        AssertReleaseVersion(repository, "1.0.0-rc.2");
+        repository.RunReleaseVersionScript("tag");
+        AssertReleaseVersion(repository, "1.0.0-rc.2");
+        Assert.Contains("v1.0.0-rc.2", repository.TagsAtHead());
+
+        repository.PrepareVersionWithReleaseScript("chore/prepare-1.0.0", "prepare-stable", "1.0.0");
+        repository.MergePullRequest("chore/prepare-1.0.0", "chore: prepare 1.0.0");
+        repository.RunReleaseVersionScript("tag");
+        AssertReleaseVersion(repository, "1.0.0");
+        Assert.Contains("v1.0.0", repository.TagsAtHead());
+
+        repository.PrepareVersionWithReleaseScript("chore/prepare-1.1.0-preview", "prepare-train", "1.1.0");
+        repository.MergePullRequest(
+            "chore/prepare-1.1.0-preview",
+            "chore: start 1.1.0 preview train"
+        );
+        AssertLocalVersion(repository, "1.1.0-preview.1");
+        repository.MergePullRequest("feature/add-authorization", "feat: add authorization");
+        AssertLocalVersion(repository, "1.1.0-preview.2");
+        repository.MergePullRequest("feature/add-reporting", "feat: add reporting");
+        AssertLocalVersion(repository, "1.1.0-preview.3");
+    }
+
+    [Fact]
+    public void Direct_gitversion_inputs_follow_release_scenario()
+    {
+        using var repository = GitVersionRepository.Create();
+        AssertLocalVersion(repository, "1.0.0-preview.0");
+        repository.MergePullRequest("feature/customer-export", "feat: add customer export");
+        AssertLocalVersion(repository, "1.0.0-preview.1");
+        repository.MergePullRequest("feature/add-auth", "feat: add authentication");
+        AssertLocalVersion(repository, "1.0.0-preview.2");
+
+        repository.PrepareVersionWithGitVersion("chore/prepare-1.0.0-rc", "rc", "1.0.0");
+        repository.MergePullRequest("chore/prepare-1.0.0-rc", "chore: prepare 1.0.0 RC train");
+        AssertReleaseVersion(repository, "1.0.0-rc.1");
         repository.Tag("v1.0.0-rc.1");
-        Assert.Equal("1.0.0-rc.1", repository.CalculateEffectiveVersion());
-
+        AssertReleaseVersion(repository, "1.0.0-rc.1");
+        Assert.Contains("v1.0.0-rc.1", repository.TagsAtHead());
+        repository.MergePullRequest("fix/release-candidate", "fix: correct release candidate behavior");
+        AssertReleaseVersion(repository, "1.0.0-rc.2");
         repository.Tag("v1.0.0-rc.2");
-        Assert.Equal("1.0.0-rc.2", repository.CalculateEffectiveVersion());
-
+        AssertReleaseVersion(repository, "1.0.0-rc.2");
+        Assert.Contains("v1.0.0-rc.2", repository.TagsAtHead());
+        repository.PrepareVersionWithGitVersion("chore/prepare-1.0.0", "stable", "1.0.0");
+        repository.MergePullRequest("chore/prepare-1.0.0", "chore: prepare 1.0.0");
         repository.Tag("v1.0.0");
-        Assert.Equal("1.0.0", repository.CalculateEffectiveVersion());
-
-        repository.MergePullRequest("feature/add-authurization", "feat: add authurization");
-        Assert.Equal("1.0.1-preview.1", repository.CalculateEffectiveVersion());
+        AssertReleaseVersion(repository, "1.0.0");
+        Assert.Contains("v1.0.0", repository.TagsAtHead());
+        repository.PrepareVersionWithGitVersion("chore/prepare-1.1.0-preview", "preview", "1.1.0");
+        repository.MergePullRequest("chore/prepare-1.1.0-preview", "chore: start 1.1.0 preview train");
+        AssertLocalVersion(repository, "1.1.0-preview.1");
+        repository.MergePullRequest("feature/add-authorization", "feat: add authorization");
+        AssertLocalVersion(repository, "1.1.0-preview.2");
+        repository.MergePullRequest("feature/add-reporting", "feat: add reporting");
+        AssertLocalVersion(repository, "1.1.0-preview.3");
     }
 
-    private static int GetPreviewNumber(string version)
+    [Fact]
+    public void Mismatched_manual_tag_is_rejected()
     {
-        var match = Regex.Match(version, @"-preview\.(?<number>\d+)");
-        Assert.True(match.Success, $"Expected preview version, got '{version}'.");
-        return int.Parse(match.Groups["number"].Value);
+        using var repository = GitVersionRepository.Create();
+        repository.MergePullRequest("feature/customer-export", "feat: add customer export");
+        repository.Tag("v9.9.9");
+        Assert.Throws<InvalidOperationException>(() => repository.CalculateVersion());
     }
-}
 
-internal sealed class GitVersionRepository : IDisposable
-{
-    private readonly string _directory;
-    private readonly string _toolDirectory;
-
-    private GitVersionRepository(string directory)
+    private static void AssertLocalVersion(GitVersionRepository repository, string expectedVersion)
     {
-        _directory = directory;
-        _toolDirectory = Path.Combine(directory, ".tools");
+        Assert.Equal(expectedVersion, repository.CalculateVersion());
+        Assert.Equal(expectedVersion, repository.CalculateVersionWithGitVersion());
     }
 
-    public static GitVersionRepository Create()
-    {
-        var sampleRoot = FindSampleRoot();
-        var directory = Path.Combine(Path.GetTempPath(), $"gitversion-tests-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(directory);
-        File.Copy(
-            Path.Combine(sampleRoot, "GitVersion.yml"),
-            Path.Combine(directory, "GitVersion.yml")
-        );
-
-        var repository = new GitVersionRepository(directory);
-        repository.Run("git", "init");
-        repository.Run(
-            "git",
-            "remote",
-            "add",
-            "origin",
-            "https://example.com/versioning-tests.git"
-        );
-        repository.Run("git", "config", "user.email", "versioning-tests@example.com");
-        repository.Run("git", "config", "user.name", "Versioning Tests");
-        repository.Run("git", "checkout", "-b", "main");
-        repository.Run(
-            "dotnet",
-            "tool",
-            "install",
-            "--tool-path",
-            repository._toolDirectory,
-            "GitVersion.Tool",
-            "--version",
-            "6.8.2"
-        );
-        File.WriteAllText(Path.Combine(directory, ".gitignore"), ".tools/\n", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(directory, "changes.txt"), "seed\n", Encoding.UTF8);
-        repository.Run("git", "add", ".");
-        repository.Run("git", "commit", "-m", "chore: initialize", "--no-verify");
-        repository.Tag("v1.0.0-preview.0");
-        return repository;
-    }
-
-    public void MergePullRequest(string branch, string message)
-    {
-        Run("git", "checkout", "-b", branch);
-        File.AppendAllText(Path.Combine(_directory, "changes.txt"), $"{message}\n", Encoding.UTF8);
-        Run("git", "add", "changes.txt");
-        Run("git", "commit", "-m", message, "--no-verify");
-        Run("git", "checkout", "main");
-        Run("git", "merge", "--squash", branch);
-        Run("git", "commit", "-m", message, "--no-verify");
-        Run("git", "branch", "-D", branch);
-    }
-
-    public void Tag(string tag) => Run("git", "tag", "-a", tag, "-m", tag);
-
-    public string CalculateEffectiveVersion()
-    {
-        var releaseTags = Run("git", "tag", "--points-at", "HEAD")
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-            .Where(tag => Regex.IsMatch(tag, @"^v\d+\.\d+\.\d+(?:-rc\.\d+)?$"))
-            .OrderByDescending(GetReleaseTagRank)
-            .ToArray();
-
-        return releaseTags.Length > 0
-            ? releaseTags[0][1..]
-            : Run(
-                Path.Combine(
-                    _toolDirectory,
-                    OperatingSystem.IsWindows() ? "dotnet-gitversion.exe" : "dotnet-gitversion"
-                ),
-                "/showvariable",
-                "SemVer"
-            );
-    }
-
-    private static (int ReleaseKind, int CandidateNumber) GetReleaseTagRank(string tag)
-    {
-        if (Regex.IsMatch(tag, @"^v\d+\.\d+\.\d+$"))
-            return (2, 0);
-
-        return (1, int.Parse(Regex.Match(tag, @"-rc\.(\d+)$").Groups[1].Value));
-    }
-
-    public void Dispose()
-    {
-        try
-        {
-            Directory.Delete(_directory, recursive: true);
-        }
-        catch { }
-    }
-
-    private string Run(string fileName, params string[] arguments)
-    {
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo
-        {
-            FileName = fileName,
-            WorkingDirectory = _directory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var argument in arguments)
-            process.StartInfo.ArgumentList.Add(argument);
-        process.Start();
-        var output = process.StandardOutput.ReadToEnd();
-        var error = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-        if (process.ExitCode != 0)
-            throw new InvalidOperationException(
-                $"{fileName} {string.Join(' ', arguments)} failed.\n{output}\n{error}"
-            );
-        return output.Trim();
-    }
-
-    private static string FindSampleRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "GitVersion.yml")))
-                return directory.FullName;
-            directory = directory.Parent;
-        }
-        throw new DirectoryNotFoundException("Could not find GitVersion sample root.");
-    }
+    private static void AssertReleaseVersion(GitVersionRepository repository, string expectedVersion) =>
+        Assert.Equal(expectedVersion, repository.CalculateVersion());
 }

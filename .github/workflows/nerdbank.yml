@@ -15,6 +15,9 @@ on:
 permissions:
   contents: read
 
+env:
+  DOTNET_VERSION: 10.0.x
+
 jobs:
   build-test:
     name: NBGV build and test
@@ -28,7 +31,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: dotnet restore tests/nerdbank-versioning-sample.Tests/nerdbank-versioning-sample.Tests.csproj
       - run: dotnet test tests/nerdbank-versioning-sample.Tests/nerdbank-versioning-sample.Tests.csproj --configuration Release --no-restore
 
@@ -42,31 +45,32 @@ jobs:
         working-directory: nerdbank-versioning-sample
     outputs:
       version: ${{ steps.version.outputs.version }}
+      assembly_version: ${{ steps.version.outputs.assembly_version }}
+      informational_version: ${{ steps.version.outputs.informational_version }}
+      environment: ${{ steps.version.outputs.environment }}
+      commit: ${{ steps.version.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
-      - run: dotnet tool install --tool-path "$RUNNER_TEMP/nbgv" nbgv --version 3.10.94
+          dotnet-version: ${{ env.DOTNET_VERSION }}
       - name: Calculate version
         id: version
         shell: bash
         run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#v}"
-          else
-            version="$(bash scripts/calculate-version.sh . $RUNNER_TEMP/nbgv/nbgv)"
-          fi
-          echo "Calculated version: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          nbgv="$RUNNER_TEMP/nbgv/nbgv"
+          dotnet tool install --tool-path "$RUNNER_TEMP/nbgv" nbgv --version 3.10.94
+          bash scripts/calculate-version.sh . "$nbgv" github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
-    name: NBGV publish
+    name: Publish NBGV release
     needs: [build-test, calculate-version]
-    if: (contains(needs.calculate-version.outputs.version, '-preview.') && !startsWith(github.ref, 'refs/tags/v')) || (startsWith(github.ref, 'refs/tags/v') && !contains(needs.calculate-version.outputs.version, '-preview.'))
+    if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && contains(needs.calculate-version.outputs.version, '-preview.') && !contains(needs.calculate-version.outputs.version, '-preview.0'))
     runs-on: ubuntu-latest
+    environment: ${{ needs.calculate-version.outputs.environment }}
     permissions:
       contents: write
     defaults:
@@ -78,11 +82,12 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: ${{ env.DOTNET_VERSION }}
       - run: dotnet restore src/nerdbank-versioning-sample.csproj
-      - run: dotnet publish src/nerdbank-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }}
+      - run: dotnet publish src/nerdbank-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }} -p:InformationalVersion=${{ needs.calculate-version.outputs.informational_version }}
       - run: zip -r "nerdbank-${{ needs.calculate-version.outputs.version }}.zip" publish
-      - name: Publish NBGV release
+      - name: Update or publish Release Drafter release
+        if: always()
         uses: release-drafter/release-drafter@v7
         with:
           config-name: release-drafter.yml

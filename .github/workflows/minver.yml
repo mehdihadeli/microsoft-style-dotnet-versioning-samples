@@ -42,6 +42,10 @@ jobs:
         working-directory: minver-versioning-sample
     outputs:
       version: ${{ steps.version.outputs.version }}
+      assembly_version: ${{ steps.version.outputs.assembly_version }}
+      informational_version: ${{ steps.version.outputs.informational_version }}
+      environment: ${{ steps.version.outputs.environment }}
+      commit: ${{ steps.version.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,10 +57,10 @@ jobs:
       - name: Calculate version
         id: version
         shell: bash
+        env:
+          MINVER_CLI: ${{ runner.temp }}/minver/minver
         run: |
-          version="$(MINVER_CLI="$RUNNER_TEMP/minver/minver" ./scripts/calculate-version.sh)"
-          echo "Calculated version: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          ./scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: MinVer publish

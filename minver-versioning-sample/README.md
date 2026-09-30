@@ -30,7 +30,7 @@ The `calculate-version` job installs MinVer CLI `8.0.0` and runs the project wra
 MINVER_CLI="$RUNNER_TEMP/minver/minver" ./scripts/calculate-version.sh
 ```
 
-The result is passed to `dotnet publish -p:Version=...`. On a tagged commit MinVer returns the tag version. Before the first release tag, an untagged commit uses the configured `preview` identifier. After a prerelease tag, MinVer preserves that tag's identifiers and appends Git height.
+The result is passed to `dotnet publish -p:Version=...`. On a tagged commit MinVer returns the tag version. At initial Git height zero, native MinVer returns `1.0.0-preview` without a numeric suffix. Successive untagged commits append Git height, producing versions such as `1.0.0-preview.1` and `1.0.0-preview.2`. After a prerelease tag, MinVer preserves that tag's identifiers and appends Git height.
 
 Example release scenario:
 
@@ -76,11 +76,12 @@ git push origin v1.0.0-rc.2
 git tag -a v1.0.0 -m "Release 1.0.0"
 git push origin v1.0.0
 ------------
-# 1.0.1-preview.1
-git switch -c feature/add-authurization
+# 1.1.0-preview.1
+git switch -c chore/prepare-1.1.0-preview
+./release-version.sh prepare-train 1.1.0
 git add -A
-git commit -m "feat: add authurization"
-git push -u origin feature/add-authurization
+git commit -m "chore: start 1.1.0 preview train"
+git push -u origin chore/prepare-1.1.0-preview
 ```
 
 ## Local validation
@@ -95,7 +96,7 @@ dotnet test tests/minver-versioning-sample.Tests/minver-versioning-sample.Tests.
 
 On Windows, run these commands from Git Bash. The wrapper automatically uses `minver.exe` when the local tool installation has the Windows executable name.
 
-The complete workflow is in [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml).
+The local and CI calculator is [`scripts/calculate-version.sh`](scripts/calculate-version.sh). The complete workflow is in [`.github/workflows/minver.yml`](../.github/workflows/minver.yml).
 
 ## Tradeoffs
 

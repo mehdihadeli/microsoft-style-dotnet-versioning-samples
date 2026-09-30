@@ -50,6 +50,10 @@ jobs:
         working-directory: semantic-release-versioning-sample
     outputs:
       version: ${{ steps.version.outputs.version }}
+      assembly_version: ${{ steps.version.outputs.assembly_version }}
+      informational_version: ${{ steps.version.outputs.informational_version }}
+      environment: ${{ steps.version.outputs.environment }}
+      commit: ${{ steps.version.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,14 +70,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#v}"
-          else
-            next_version="$(node scripts/calculate-version.mjs)"
-            version="${next_version:-1.0.0}-preview.${GITHUB_RUN_NUMBER}"
-          fi
-          echo "Calculated version: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          ./scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: semantic-release publish

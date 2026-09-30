@@ -28,6 +28,10 @@ See the official [configuration guide](https://semantic-release.org/usage/config
 
 semantic-release analyzes commits, while this sample uses `GITHUB_RUN_NUMBER` for preview uniqueness. Squash merging is still required so one PR contributes one Conventional Commit on `main`; configure the squash commit title from the PR title (`feat:`, `fix:`, or a breaking-change form).
 
+Without a CI run number, the shell adapter derives local preview ordinals from Git history since the release-intent change. Scenario tests call parameterless fixture methods. During RC intent, the adapter calculates the next RC ordinal from reachable RC tags; it does not return to preview numbering after RC1.
+
+The initialization commit carries a `v0.0.0` bootstrap tag so semantic-release has a history anchor. The calculator treats that tag as setup metadata, not a publishable release: while `release.env` declares the `1.0.0` preview train, the bootstrap commit calculates `1.0.0-preview.0`.
+
 ## Local steps
 
 ```powershell
@@ -59,14 +63,14 @@ Release Drafter handles the human-reviewed draft and publication state. semantic
 
 ## CI scenario
 
-The `calculate-version` job runs the local JavaScript API in dry-run mode. It reads Conventional Commits and returns the next stable base. CI appends `-preview.${GITHUB_RUN_NUMBER}` for untagged `main` builds. For RC and stable tags, the workflow uses `GITHUB_REF_NAME` directly. The .NET publish job receives the final value with `-p:Version`.
+The local and CI calculator in [`scripts/calculate-version.sh`](scripts/calculate-version.sh) runs the JavaScript API in dry-run mode. It reads Conventional Commits and returns the next stable base, then appends `-preview.${GITHUB_RUN_NUMBER}` for untagged `main` builds. For RC and stable tags, it validates the tag at `HEAD` and uses its exact version. The .NET publish job receives the final value with `-p:Version`.
 
 Example release scenario:
 
 1. Create **PR1** with a `feat:` title and merge it into `main`. semantic-release calculates the next stable base, and CI publishes an untagged `1.0.0-preview.<run-number>` draft build.
 2. Create **PR2** with another `feat:` title and merge it into `main`. CI calculates the next run-number preview, still without creating a tag.
 3. Validate preview 2 and tag that exact commit `v1.0.0-rc.1`. The workflow reads the tag directly and publishes prerelease `1.0.0-rc.1`.
-4. Find a release-candidate problem, create a `fix:` PR, and merge it into `main`. CI creates another untagged preview. After validation, tag that commit `v1.0.0-rc.2`.
+4. Find a release-candidate problem, create a `fix:` PR, and merge it into `main`. The committed RC intent calculates `1.0.0-rc.2` for validation. Tag that commit `v1.0.0-rc.2` to publish it.
 5. Run the RC2 checks. When they pass, tag the approved RC2 commit `v1.0.0`. CI publishes stable version `1.0.0`.
 
 Only RC and stable commits receive Git tags. Preview tags are intentionally not created. semantic-release calculates the next version here; Release Drafter remains responsible for the reviewed GitHub release draft and publication state.
@@ -105,11 +109,12 @@ git push origin v1.0.0-rc.2
 git tag -a v1.0.0 -m "Release 1.0.0"
 git push origin v1.0.0
 ------------
-# 1.0.1-preview.1
-git switch -c feature/add-authurization
+# 1.1.0-preview.1
+git switch -c chore/prepare-1.1.0-preview
+./release-version.sh prepare-train 1.1.0
 git add -A
-git commit -m "feat: add authurization"
-git push -u origin feature/add-authurization
+git commit -m "chore: start 1.1.0 preview train"
+git push -u origin chore/prepare-1.1.0-preview
 ```
 
 ## Local validation
@@ -120,4 +125,4 @@ npx semantic-release --dry-run --no-ci
 dotnet test tests/semantic-release-versioning-sample.Tests/semantic-release-versioning-sample.Tests.csproj
 ```
 
-The dry run requires a repository with a `main` branch, reachable release tags, and valid Git metadata. The complete CI implementation is in [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml).
+The dry run requires a repository with a `main` branch, reachable release tags, and valid Git metadata. The complete CI implementation is in [`.github/workflows/semantic-release.yml`](../.github/workflows/semantic-release.yml).

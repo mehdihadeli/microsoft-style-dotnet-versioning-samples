@@ -2,6 +2,10 @@
   <PropertyGroup>
     <RepositoryRoot Condition="'$(RepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</RepositoryRoot>
     <VersionPrefix Condition="'$(VersionPrefix)' == ''">1.0.0</VersionPrefix>
+    <ReleasePhase Condition="'$(ReleasePhase)' == ''">preview</ReleasePhase>
+    <ReleaseCandidateNumber Condition="'$(ReleaseCandidateNumber)' == ''">1</ReleaseCandidateNumber>
+    <Version Condition="'$(Version)' == '' and '$(ReleasePhase)' == 'rc'">$(VersionPrefix)-rc.$(ReleaseCandidateNumber)</Version>
+    <Version Condition="'$(Version)' == '' and '$(ReleasePhase)' == 'stable'">$(VersionPrefix)</Version>
     <Version Condition="'$(Version)' == '' and '$(GITHUB_RUN_NUMBER)' != ''">$(VersionPrefix)-preview.$(GITHUB_RUN_NUMBER)</Version>
     <Version Condition="'$(Version)' == ''">$(VersionPrefix)-preview.0</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>

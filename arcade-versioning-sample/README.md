@@ -25,7 +25,7 @@ Full Arcade repositories normally use `eng/Versions.props`, `eng/common/build.ps
 - [`tests/arcade-versioning-sample.Tests/`](tests/arcade-versioning-sample.Tests/) tests the workflow-owned version adapter and squash-merge history.
 - [`Directory.Build.props`](Directory.Build.props) stays at the sample root so it applies to source and test projects.
 
-Arcade previews use `GITHUB_RUN_NUMBER`, so Git height does not control their suffix. The test still models squash merging to keep repository history consistent with the other samples and proves RC/stable tags override the run-number preview.
+CI previews use `GITHUB_RUN_NUMBER`. Without that input, the shell adapter derives the preview ordinal from Git history since the train's configuration change. Scenario tests take no run-number arguments and compare this history-derived version with MSBuild stamping. RC intent produces the next RC ordinal, not another preview.
 
 ## Restore requirement
 
@@ -51,17 +51,17 @@ The GitHub workflow adds the feed, restores, builds, tests, and publishes tagged
 
 ## CI scenario
 
-The `calculate-version` job does not need a versioning CLI. It uses `1.0.0-preview.${GITHUB_RUN_NUMBER}` for an untagged `main` build and strips `v` from an RC or stable tag. The publish job passes that value to Arcade through `-p:Version` and sets `-p:OfficialBuild=true` only for tags.
+The local and CI calculator in [`scripts/calculate-version.sh`](scripts/calculate-version.sh) uses `1.0.0-preview.${GITHUB_RUN_NUMBER}` for an untagged `main` build and validates the exact RC or stable tag at `HEAD`. The publish job passes that value to Arcade through `-p:Version` and sets `-p:OfficialBuild=true` only for tags.
 
 Example release scenario:
 
 1. Create **PR1** with a feature and merge it into `main`. CI calculates `1.0.0-preview.<run-number>`, creates no tag, and keeps the Release Drafter release as a draft.
 2. Create **PR2** with another feature and merge it into `main`. CI calculates the next run-number preview, again without a tag.
 3. Validate preview 2 and tag that exact commit `v1.0.0-rc.1`. CI passes `1.0.0-rc.1` to Arcade and publishes an official prerelease.
-4. Find a release-candidate problem, create a fix PR, and merge it into `main`. CI calculates another untagged run-number preview. After validation, tag that commit `v1.0.0-rc.2`.
+4. Find a release-candidate problem, create a fix PR, and merge it into `main`. The committed RC intent calculates `1.0.0-rc.2` for validation. Tag that commit `v1.0.0-rc.2` to publish it.
 5. Run the RC2 checks. When they pass, tag the approved RC2 commit `v1.0.0`. CI passes `1.0.0` to Arcade and publishes the official stable release.
 
-Only RC and stable commits receive tags. Arcade does not automatically advance `VersionPrefix` after stable publication. Change it to `1.0.1` in source control before the next development line. For local builds, the fallback remains `1.0.0-preview.0`; CI owns the release version.
+Only RC and stable commits receive tags. Arcade does not automatically advance `VersionPrefix` after stable publication. Run `./release-version.sh prepare-train 1.1.0` on a release-preparation branch before the next feature train. Use the shell calculator for local history-derived versions; a plain MSBuild preview without supplied inputs still defaults to `preview.0`.
 
 The shared command scenario for this sample is:
 
@@ -97,9 +97,10 @@ git push origin v1.0.0-rc.2
 git tag -a v1.0.0 -m "Release 1.0.0"
 git push origin v1.0.0
 ------------
-# 1.0.1-preview.1
-git switch -c feature/add-authurization
+# 1.1.0-preview.1
+git switch -c chore/prepare-1.1.0-preview
+./release-version.sh prepare-train 1.1.0
 git add -A
-git commit -m "feat: add authurization"
-git push -u origin feature/add-authurization
+git commit -m "chore: start 1.1.0 preview train"
+git push -u origin chore/prepare-1.1.0-preview
 ```

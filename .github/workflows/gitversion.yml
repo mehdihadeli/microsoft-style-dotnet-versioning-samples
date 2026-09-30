@@ -42,6 +42,10 @@ jobs:
         working-directory: gitversion-versioning-sample
     outputs:
       version: ${{ steps.version.outputs.version }}
+      assembly_version: ${{ steps.version.outputs.assembly_version }}
+      informational_version: ${{ steps.version.outputs.informational_version }}
+      environment: ${{ steps.version.outputs.environment }}
+      commit: ${{ steps.version.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,14 +57,10 @@ jobs:
       - name: Calculate version
         id: version
         shell: bash
+        env:
+          GITVERSION_CLI: ${{ runner.temp }}/gitversion/dotnet-gitversion
         run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            version="${GITHUB_REF_NAME#v}"
-          else
-            version="$($RUNNER_TEMP/gitversion/dotnet-gitversion /showvariable SemVer)"
-          fi
-          echo "Calculated version: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          ./scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: GitVersion publish

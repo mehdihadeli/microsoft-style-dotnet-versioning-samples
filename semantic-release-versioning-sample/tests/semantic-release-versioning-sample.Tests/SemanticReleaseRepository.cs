@@ -29,7 +29,7 @@ internal sealed class SemanticReleaseRepository : IDisposable
         File.Copy(Path.Combine(sampleRoot, "scripts", "calculate-version.mjs"), Path.Combine(directory, "scripts", "calculate-version.mjs"));
         File.Copy(Path.Combine(sampleRoot, "scripts", "calculate-version.sh"), Path.Combine(directory, "scripts", "calculate-version.sh"));
         File.WriteAllText(Path.Combine(directory, "release.config.cjs"),
-            "module.exports = { branches: ['main'], tagFormat: 'v${version}', plugins: ['@semantic-release/commit-analyzer', '@semantic-release/release-notes-generator'] };");
+            "module.exports = { branches: ['main'], tagFormat: 'v${version}', plugins: ['@semantic-release/commit-analyzer'] };");
         LinkNodeModules(directory, dependencyDirectory);
 
         var remoteDirectory = Path.Combine(Path.GetTempPath(), $"semantic-release-remote-{Guid.NewGuid():N}.git");
@@ -38,7 +38,7 @@ internal sealed class SemanticReleaseRepository : IDisposable
         repository.Run("git", "config", "user.email", "versioning-tests@example.com");
         repository.Run("git", "config", "user.name", "Versioning Tests");
         repository.Run("git", "checkout", "-b", "main");
-        repository.Run("git", "init", "--bare", remoteDirectory);
+        repository.Run("git", "init", "--bare", "--initial-branch=main", remoteDirectory);
         repository.Run("git", "remote", "add", "origin", remoteDirectory);
         File.WriteAllText(Path.Combine(directory, "changes.txt"), "seed\n", new UTF8Encoding(false));
         repository.Run("git", "add", ".");
@@ -100,7 +100,8 @@ internal sealed class SemanticReleaseRepository : IDisposable
             value != "v0.0.0" && Regex.IsMatch(value, @"^v\d+\.\d+\.\d+(?:-rc\.\d+)?$"));
         if (tag is not null)
             return tag[1..];
-        var output = Run(_npx, "--no-install", "semantic-release", "--dry-run", "--no-ci");
+        var output = RunWithEnvironment(_npx, ["--no-install", "semantic-release", "--dry-run", "--no-ci"],
+            ("GITHUB_HEAD_REF", ""), ("GITHUB_REF", "refs/heads/main"));
         var match = Regex.Match(output, @"The next release version is (?<version>\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)", RegexOptions.IgnoreCase);
         if (!match.Success)
             throw new InvalidOperationException($"Could not find next release version in:\n{output}");
@@ -126,11 +127,13 @@ internal sealed class SemanticReleaseRepository : IDisposable
 
     public string GetNextVersionWithSemanticRelease()
     {
-        var version = Run("node", "scripts/calculate-version.mjs")
+        var output = RunWithEnvironment("node", ["scripts/calculate-version.mjs"],
+            ("GITHUB_HEAD_REF", ""), ("GITHUB_REF", "refs/heads/main"));
+        var version = output
             .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
             .SingleOrDefault(line => Regex.IsMatch(line, @"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")) ?? string.Empty;
         if (string.IsNullOrWhiteSpace(version))
-            throw new InvalidOperationException("semantic-release did not calculate a next release.");
+            throw new InvalidOperationException($"semantic-release did not calculate a next release.\n{output}");
         return version;
     }
 

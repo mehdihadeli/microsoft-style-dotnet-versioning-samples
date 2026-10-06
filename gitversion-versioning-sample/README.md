@@ -43,17 +43,21 @@ CI additionally appends `.{yy}{julian}.{run_number}` to prerelease versions (see
 
 ## Preview numbering and merge strategy
 
-`preview.N` is the number of commits reachable from `HEAD` since the last version-source tag, so a merge commit advances it by every commit in the branch plus the merge commit itself:
+`preview.N` is GitVersion's `PreReleaseNumber`, which equals `CommitsSinceVersionSource`: the number of commits reachable from `HEAD` since the last version-source tag. It counts commits, not pull requests, so a merge commit advances it by every commit in the branch plus the merge commit itself:
 
-| Merge style                        | Two-commit PR      | Change per PR |
-| ---------------------------------- | ------------------ | ------------- |
-| Merge commit (`--no-ff`)           | `.0` → `.3` → `.6` | +3            |
-| Squash and merge                   | `.0` → `.1` → `.2` | +1            |
+| Merge style                         | Two-commit PR      | Change per PR |
+| ----------------------------------- | ------------------ | ------------- |
+| Merge commit (`--no-ff`)            | `.0` → `.3` → `.6` | +3            |
+| Squash and merge                    | `.0` → `.1` → `.2` | +1            |
 | Rebase and merge (two commits land) | `.0` → `.2` → `.4` | +2            |
 
-Configure the repository to allow squash merges only, so one accepted pull request advances the preview number by exactly one: **Settings → General → Pull Requests** → uncheck *Allow merge commits* and *Allow rebase merging*, check *Allow squash merging*, and set the default to *Squash*.
+In CI the jump is easy to miss as a bug: one two-commit pull request merged with a merge commit takes `1.0.0-preview.12` to `1.0.0-preview.15` instead of `1.0.0-preview.13`. No GitVersion mode, strategy, or workflow changes this; `mode: Mainline` is not a valid mode in GitVersion 6, and the `Mainline` version strategy still increments by more than one per merge commit. The release model expects one accepted pull request to equal one preview step, so use squash merges.
 
-The `calculate-version` job runs [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh) and fails when `HEAD` is a merge commit, so silent drift is caught before a release is published. The tests perform `git merge --squash` to verify one new commit per accepted pull request.
+Configure the repository to allow squash merges only: **Settings → General → Pull Requests** → uncheck *Allow merge commits* and *Allow rebase merging*, check *Allow squash merging*, and set the default to *Squash*.
+
+The `calculate-version` job runs [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh) and fails the build when `HEAD` is a merge commit, so silent drift is caught before a release is published. The guard allows a root commit and skips release-tag builds, because a tagged build takes its identity from the tag. The tests perform `git merge --squash` to verify one new commit per accepted pull request.
+
+Squash merges matter for the same reason in every Git-height tool in this repository, not only GitVersion.
 
 ## CI scenario
 
@@ -75,15 +79,17 @@ dotnet publish ... -p:Version=<calculated-version>
 
 GitVersion numbers pre-releases from Git height. Without a version baseline tag, the initialization commit counts as well, so the first merged pull request can produce `1.0.0-preview.2`. This sample creates `v1.0.0-preview.0` once on the initialization commit so the first merged pull request produces `preview.1`.
 
+The baseline fixes the starting point but not the step size. Each subsequent preview advances by the number of commits that landed on `main`, so squash merging is what keeps the step at one (see [Preview numbering and merge strategy](#preview-numbering-and-merge-strategy)).
+
 Example release scenario:
 
 1. Tag the initialization commit as `v1.0.0-preview.0`. This baseline is not published as a preview release.
-2. Create **PR1** with a feature and merge it into `main`. CI calculates `1.0.0-preview.1`, creates no new tag, and keeps the Release Drafter release as a draft.
-3. Create **PR2** with another feature and merge it into `main`. CI calculates `1.0.0-preview.2`, again without creating a tag.
+2. Create **PR1** with a feature and squash-merge it into `main`. CI calculates `1.0.0-preview.1`, creates no new tag, and keeps the Release Drafter release as a draft.
+3. Create **PR2** with another feature and squash-merge it into `main`. CI calculates `1.0.0-preview.2`, again without creating a tag.
 4. Validate preview 2 and tag that exact `main` commit `v1.0.0-rc.1`. CI reads the tag as `1.0.0-rc.1` and publishes a prerelease.
-5. Land a `fix:` on `main`. GitVersion calculates the next preview, and you tag that commit `v1.0.0-rc.2` after final RC validation.
+5. Land a `fix:` on `main` through a squash-merged pull request. GitVersion calculates the next preview, and you tag that commit `v1.0.0-rc.2` after final RC validation.
 6. Tag the approved `main` commit `v1.0.0`. CI publishes stable version `1.0.0`.
-7. Merge a `feat:` into `main`. GitVersion calculates `1.1.0-preview.1` and the next train begins.
+7. Squash-merge a `feat:` into `main`. GitVersion calculates `1.1.0-preview.1` and the next train begins.
 
 Only release candidates and the stable release receive Git tags. Preview identity comes from GitVersion, but preview publication remains untagged.
 
@@ -97,6 +103,7 @@ git push origin v1.0.0-preview.0
 
 ----------
 # 1.0.0-preview.1
+# Squash-merge the pull request: one pull request, one commit on main.
 git switch -c feature/customer-export
 git add -A
 git commit -m "feat: add customer export"
@@ -150,3 +157,5 @@ The complete workflow is in [`.github/workflows/build-and-publish.yml`](.github/
 ## Tradeoffs
 
 GitVersion is the best fit when branch topology, merge history, and commit-message increments are part of the policy. It has more configuration and depends more heavily on complete Git history than MinVer.
+
+Preview numbering counts commits rather than pull requests, so the sample requires squash merges and enforces them with [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh). Keep that requirement if you adopt the sample; with merge commits enabled, `preview.N` advances by more than one per pull request and no GitVersion setting prevents it.

@@ -32,6 +32,10 @@ jobs:
       - run: dotnet restore tests/minver-versioning-sample.Tests/minver-versioning-sample.Tests.csproj
       - run: dotnet test tests/minver-versioning-sample.Tests/minver-versioning-sample.Tests.csproj --configuration Release --no-restore
 
+  # MinVer height follows the first parent of each merge, so squash merging and
+  # merge commits both advance the preview by exactly one pull request. Disable
+  # "Allow rebase merging" in the repository pull-request settings; a rebased
+  # pull request replays every branch commit onto main and multiplies the height.
   calculate-version:
     name: Calculate MinVer version
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
@@ -54,6 +58,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - run: dotnet tool install --tool-path "$RUNNER_TEMP/minver" minver-cli --version 8.0.0
+      # minver-cli has no configuration file, so scripts/calculate-version.sh owns the
+      # options. Every caller runs that script, which keeps the strategy in one place.
       - name: Calculate version
         id: version
         shell: bash

@@ -11,7 +11,7 @@ internal static class ProcessRunner
         string directory,
         string fileName,
         string[] arguments,
-        (string Name, string Value)? environment
+        IReadOnlyDictionary<string, string>? environment
     )
     {
         using var process = new Process();
@@ -24,10 +24,13 @@ internal static class ProcessRunner
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        foreach (var name in new[] { "GITHUB_ACTIONS", "GITHUB_REF", "GITHUB_REF_NAME", "GITHUB_RUN_NUMBER" })
+            process.StartInfo.Environment.Remove(name);
         foreach (var argument in arguments)
             process.StartInfo.ArgumentList.Add(argument);
-        if (environment is { } value)
-            process.StartInfo.Environment[value.Name] = value.Value;
+        if (environment is not null)
+            foreach (var (name, value) in environment)
+                process.StartInfo.Environment[name] = value;
         process.Start();
         var output = process.StandardOutput.ReadToEnd();
         var error = process.StandardError.ReadToEnd();

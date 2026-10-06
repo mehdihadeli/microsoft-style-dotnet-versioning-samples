@@ -1,33 +1,58 @@
 # GitVersion sample
 
-GitVersion CLI reads Git history and applies the `GitHubFlow/v1` model from [GitVersion.yml](GitVersion.yml). CI passes its calculated version to the .NET SDK with `-p:Version`; this sample does not require GitVersion MSBuild integration.
+GitVersion CLI reads Git history and applies the `GitHubFlow/v1` model from [GitVersion.yml](GitVersion.yml). Preview identities come from GitVersion, and release-candidate and stable identities come from a release tag on `main`; Conventional Commit messages start the next train. A small CI formatter, [`scripts/calculate-version.sh`](scripts/calculate-version.sh), reads that release tag and appends build metadata (`{yy}{julian}.{run_number}`) to prerelease builds. CI passes the calculated version to the .NET SDK with `-p:Version`; this sample does not require GitVersion MSBuild integration.
 
 ## Configuration
 
 The configuration is intentionally small:
 
-| Setting                    | Meaning                                                         |
-| -------------------------- | --------------------------------------------------------------- |
-| `workflow: GitHubFlow/v1`  | Uses `main` and short-lived feature branches.                   |
-| `mode: ContinuousDelivery` | Calculates a version for every accepted commit.                 |
-| `next-version: 1.0.0`      | Sets the initial development line before the first release tag. |
-| `main.label: preview`      | Gives untagged `main` builds a `-preview.N` suffix.             |
-| `main.increment: Patch`    | Starts the next patch line after a stable tag.                  |
-| `tag-prefix: "[vV]?"`      | Accepts both `v1.0.0` and `1.0.0` tags.                         |
+| Setting                          | Meaning                                                                 |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `workflow: GitHubFlow/v1`        | Uses `main` plus short-lived feature branches.                          |
+| `mode: ContinuousDelivery`       | Calculates a version for every accepted commit.                         |
+| `next-version: 1.0.0`            | Sets the initial development line before the first release tag.         |
+| `main.label: preview`            | Gives untagged `main` builds a `-preview.N` suffix.                     |
+| `main.increment: Patch`          | Starts the next patch line after a stable tag.                          |
+| `major/minor/patch-bump-message` | Maps Conventional Commits (`feat:`, `fix:`, `!`) to version increments. |
+| `tag-prefix: "[vV]?"`            | Accepts both `v1.0.0` and `1.0.0` tags.                                 |
 
 Keep `fetch-depth: 0`; GitVersion needs the complete graph and tags. The official references are the [configuration guide](https://gitversion.net/docs/reference/configuration), [GitHub Flow guide](https://gitversion.net/docs/learn/branching-strategies/githubflow/examples), and [version increments guide](https://gitversion.net/docs/reference/version-increments).
+
+## Version sources
+
+GitVersion derives preview versions from the Git graph, and a release tag on `main` supplies the release identity:
+
+| Commit state                | Version           | Source                                            |
+| --------------------------- | ----------------- | ------------------------------------------------- |
+| Untagged commit on `main`   | `1.0.0-preview.N` | `main.label` plus Git height                      |
+| Commit tagged `vx.y.z-rc.N` | `x.y.z-rc.N`      | the tag at `HEAD`, read by `calculate-version.sh` |
+| Commit tagged `vx.y.z`      | `x.y.z`           | the tag at `HEAD`, read by `calculate-version.sh` |
+
+GitVersion always labels untagged `main` commits as previews and never lets a prerelease tag's label win on a main branch; only stable tags pass through natively. The CI formatter therefore reads the release tag at `HEAD` directly. A tag on `main` is the approval, so RC and stable identities remain tag-gated with no release branch. Conventional Commit messages drive the increment that starts the next train: a `feat:` after `v1.0.0` opens `1.1.0-preview.1`, and a breaking-change marker such as `feat!:` opens the next major line.
+
+CI additionally appends `.{yy}{julian}.{run_number}` to prerelease versions (see [CI scenario](#ci-scenario)) so every build is unique; the local and tagged versions above stay unchanged.
 
 ## Project structure
 
 - [`src/`](src/) contains the Web API.
-- [`tests/gitversion-versioning-sample.Tests/`](tests/gitversion-versioning-sample.Tests/) contains an isolated Git-history integration test.
+- [`tests/gitversion-versioning-sample.Tests/`](tests/gitversion-versioning-sample.Tests/) contains isolated Git-history integration tests that run the real GitVersion CLI.
+- [`scripts/calculate-version.sh`](scripts/calculate-version.sh) is the CI formatter that appends the prerelease build suffix.
 - [`GitVersion.yml`](GitVersion.yml) stays at the sample root so the CLI discovers it.
+- [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml) builds, calculates the version, and publishes.
 
-Configure GitHub to allow only squash merges for this strategy. A normal merge preserves the feature commits and adds a merge commit, so Git-height tools may advance more than once for one pull request. The test creates a feature branch and performs `git merge --squash` to verify one new first-parent commit per accepted PR.
+Configure GitHub to allow only squash merges for this strategy. A normal merge preserves the feature commits and adds a merge commit, so Git-height tools may advance more than once for one pull request. The tests perform `git merge --squash` to verify one new first-parent commit per accepted PR.
 
 ## CI scenario
 
-The `calculate-version` job installs GitVersion `6.8.2`. For an untagged push to `main`, it runs `dotnet-gitversion /showvariable SemVer`. For an RC or stable tag, the workflow uses `GITHUB_REF_NAME` directly so GitVersion cannot reinterpret the explicit release identity.
+The `calculate-version` job installs GitVersion `6.8.2` and runs [`scripts/calculate-version.sh`](scripts/calculate-version.sh) in its `github-output` mode. The script reads a release tag at `HEAD` when one exists, otherwise it asks GitVersion for `SemVer`. It then appends `.{yy}{julian}.{run_number}` (for example `.26123.42`) to prerelease versions so every CI run is unique, and reports the deployment environment. Stable versions pass through unchanged.
+
+| Ref                          | Version                    | Environment  |
+| ---------------------------- | -------------------------- | ------------ |
+| `refs/heads/main` (after PR) | `1.0.0-preview.1.26123.42` | `dev`        |
+| `refs/tags/v1.0.0-rc.1`      | `1.0.0-rc.1.26123.43`      | `staging`    |
+| `refs/tags/v1.0.0`           | `1.0.0`                    | `production` |
+
+The suffix uses `date -u +%y%j` (two-digit year and Julian day) plus `GITHUB_RUN_NUMBER`, matching the nerdbank-versioning sample. The `-preview.0` baseline never publishes, so it keeps environment `none`.
 
 The publish job consumes that one value:
 
@@ -35,20 +60,21 @@ The publish job consumes that one value:
 dotnet publish ... -p:Version=<calculated-version>
 ```
 
-GitVersion numbers previews from Git height. Without a version baseline tag, the initialization commit counts as well, so the first merged pull request can produce `1.0.0-preview.2` and the next one `1.0.0-preview.3`. This sample creates `v1.0.0-preview.0` once on the initialization commit so the first merged pull request produces `preview.1`. The scenario fixture models the same setup with `repository.Tag("v1.0.0-preview.0")` before merging either feature branch.
+GitVersion numbers pre-releases from Git height. Without a version baseline tag, the initialization commit counts as well, so the first merged pull request can produce `1.0.0-preview.2`. This sample creates `v1.0.0-preview.0` once on the initialization commit so the first merged pull request produces `preview.1`.
 
 Example release scenario:
 
 1. Tag the initialization commit as `v1.0.0-preview.0`. This baseline is not published as a preview release.
 2. Create **PR1** with a feature and merge it into `main`. CI calculates `1.0.0-preview.1`, creates no new tag, and keeps the Release Drafter release as a draft.
 3. Create **PR2** with another feature and merge it into `main`. CI calculates `1.0.0-preview.2`, again without creating a tag.
-4. Validate preview 2 and tag that exact commit `v1.0.0-rc.1`. CI reads the tag as `1.0.0-rc.1` and publishes a prerelease.
-5. Tag the approved commit `v1.0.0-rc.2` after final RC validation.
-6. Tag the approved commit `v1.0.0`. CI publishes stable version `1.0.0`.
+4. Validate preview 2 and tag that exact `main` commit `v1.0.0-rc.1`. CI reads the tag as `1.0.0-rc.1` and publishes a prerelease.
+5. Land a `fix:` on `main`. GitVersion calculates the next preview, and you tag that commit `v1.0.0-rc.2` after final RC validation.
+6. Tag the approved `main` commit `v1.0.0`. CI publishes stable version `1.0.0`.
+7. Merge a `feat:` into `main`. GitVersion calculates `1.1.0-preview.1` and the next train begins.
 
-Only RC and stable commits receive Git tags. Preview identity comes from GitVersion, but preview publication remains untagged.
+Only release candidates and the stable release receive Git tags. Preview identity comes from GitVersion, but preview publication remains untagged.
 
-The shared command scenario starts by establishing the GitVersion baseline on the initialization commit:
+The shared command scenario:
 
 ```bash
 # One-time GitVersion baseline; do not publish this tag as a preview release
@@ -79,21 +105,20 @@ git push origin v1.0.0-rc.1
 
 -------------
 # 1.0.0-rc.2
-git switch main
-git pull --ff-only
+git add -A
+git commit -m "fix: correct release candidate behavior"
 git tag -a v1.0.0-rc.2 -m "Release candidate 1.0.0-rc.2"
 git push origin v1.0.0-rc.2
 --------
 # 1.0.0
 git tag -a v1.0.0 -m "Release 1.0.0"
-git push origin v1.0.0
+git push origin main v1.0.0
 ------------
 # 1.1.0-preview.1
-git switch -c chore/prepare-1.1.0-preview
-./release-version.sh prepare-train 1.1.0
+git switch -c feature/add-authorization
 git add -A
-git commit -m "chore: start 1.1.0 preview train"
-git push -u origin chore/prepare-1.1.0-preview
+git commit -m "feat: add authorization"
+git push -u origin feature/add-authorization
 ```
 
 ## Local validation
@@ -106,7 +131,7 @@ dotnet build src/gitversion-versioning-sample.csproj -p:Version=$version
 dotnet test tests/gitversion-versioning-sample.Tests/gitversion-versioning-sample.Tests.csproj
 ```
 
-The local and CI calculator is [`scripts/calculate-version.sh`](scripts/calculate-version.sh). The complete workflow is in [`.github/workflows/gitversion.yml`](../.github/workflows/gitversion.yml), and the version rules are in [`GitVersion.yml`](GitVersion.yml).
+The complete workflow is in [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml), and the version rules are in [`GitVersion.yml`](GitVersion.yml).
 
 ## Tradeoffs
 

@@ -1,16 +1,20 @@
 workflow: GitHubFlow/v1
 mode: ContinuousDelivery
 next-version: 1.0.0
-tag-prefix: "[vV]?"
+tag-prefix: '[vV]?'
 semantic-version-format: Strict
 assembly-versioning-scheme: MajorMinorPatch
 assembly-file-versioning-scheme: MajorMinorPatch
 commit-message-incrementing: Enabled
+major-version-bump-message: '^[a-z]+(\([^)]+\))?!:'
+minor-version-bump-message: '^feat(\([^)]+\))?:'
+patch-version-bump-message: '^(fix|perf|refactor)(\([^)]+\))?:'
+no-bump-message: '^(build|chore|ci|docs|style|test)(\([^)]+\))?:'
 branches:
   main:
     label: preview
     increment: Patch
     is-main-branch: true
   feature:
-    label: "{BranchName}"
+    label: '{BranchName}'
     increment: Inherit

@@ -58,7 +58,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          ./scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
+          bash scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: Arcade publish

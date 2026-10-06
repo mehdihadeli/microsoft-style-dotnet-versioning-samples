@@ -60,7 +60,7 @@ jobs:
         env:
           MINVER_CLI: ${{ runner.temp }}/minver/minver
         run: |
-          ./scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
+          bash scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: MinVer publish

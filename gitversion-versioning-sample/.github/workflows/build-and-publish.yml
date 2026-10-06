@@ -41,6 +41,9 @@ jobs:
           dotnet-version: 10.0.x
       - name: Install GitVersion
         run: dotnet tool install --tool-path "$RUNNER_TEMP/gitversion" GitVersion.Tool --version 6.8.2
+      - name: Enforce squash merges
+        shell: bash
+        run: bash .github/scripts/require-squash-merge.sh
       - name: Calculate version
         id: version
         shell: bash

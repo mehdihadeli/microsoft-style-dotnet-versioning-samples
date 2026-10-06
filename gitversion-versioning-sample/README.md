@@ -38,9 +38,22 @@ CI additionally appends `.{yy}{julian}.{run_number}` to prerelease versions (see
 - [`tests/gitversion-versioning-sample.Tests/`](tests/gitversion-versioning-sample.Tests/) contains isolated Git-history integration tests that run the real GitVersion CLI.
 - [`scripts/calculate-version.sh`](scripts/calculate-version.sh) is the CI formatter that appends the prerelease build suffix.
 - [`GitVersion.yml`](GitVersion.yml) stays at the sample root so the CLI discovers it.
+- [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh) fails the version job when a merge commit lands on `main`.
 - [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml) builds, calculates the version, and publishes.
 
-Configure GitHub to allow only squash merges for this strategy. A normal merge preserves the feature commits and adds a merge commit, so Git-height tools may advance more than once for one pull request. The tests perform `git merge --squash` to verify one new first-parent commit per accepted PR.
+## Preview numbering and merge strategy
+
+`preview.N` is the number of commits reachable from `HEAD` since the last version-source tag, so a merge commit advances it by every commit in the branch plus the merge commit itself:
+
+| Merge style                        | Two-commit PR      | Change per PR |
+| ---------------------------------- | ------------------ | ------------- |
+| Merge commit (`--no-ff`)           | `.0` → `.3` → `.6` | +3            |
+| Squash and merge                   | `.0` → `.1` → `.2` | +1            |
+| Rebase and merge (two commits land) | `.0` → `.2` → `.4` | +2            |
+
+Configure the repository to allow squash merges only, so one accepted pull request advances the preview number by exactly one: **Settings → General → Pull Requests** → uncheck *Allow merge commits* and *Allow rebase merging*, check *Allow squash merging*, and set the default to *Squash*.
+
+The `calculate-version` job runs [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh) and fails when `HEAD` is a merge commit, so silent drift is caught before a release is published. The tests perform `git merge --squash` to verify one new commit per accepted pull request.
 
 ## CI scenario
 

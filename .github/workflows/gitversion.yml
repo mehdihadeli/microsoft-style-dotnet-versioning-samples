@@ -60,7 +60,7 @@ jobs:
         env:
           GITVERSION_CLI: ${{ runner.temp }}/gitversion/dotnet-gitversion
         run: |
-          ./scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
+          bash scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: GitVersion publish

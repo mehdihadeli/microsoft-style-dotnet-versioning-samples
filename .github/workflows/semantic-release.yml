@@ -70,7 +70,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
+          bash scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: semantic-release publish

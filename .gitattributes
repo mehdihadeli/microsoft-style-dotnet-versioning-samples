@@ -1,0 +1,9 @@
+# Shell scripts must use LF so they run under bash on Linux and macOS.
+*.sh text eol=lf
+
+# Files sourced or parsed by shells must also use LF.
+*.env text eol=lf
+
+# Windows-only batch files, if any are ever added.
+*.cmd text eol=crlf
+*.bat text eol=crlf

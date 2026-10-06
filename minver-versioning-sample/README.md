@@ -52,7 +52,7 @@ MinVer appends Git height to the pre-release identifiers. Height walks the **fir
 | Squash and merge                   | `1.0.0-preview` → `.1` → `.2`  | +1            |
 | Rebase and merge (or fast-forward) | `1.0.0-preview` → `.5` → `.10` | +5            |
 
-Height is the number of first-parent commits after the version-source commit, equivalent to `git rev-list --first-parent --count` relative to that commit. The MinVer documentation states that when history diverges it follows the paths in the order the commit's parents are stored in Git, and the first parent is the branch that was checked out when the merge was performed.
+Height is the number of first-parent commits after the version-source commit, equivalent to `git rev-list --first-parent --count` relative to that commit. The MinVer documentation states that when history diverges it follows the paths in the order the commit's parents are stored in Git, and the first parent is the branch that was checked out when the merge was performed..
 
 This is the opposite of a plain commit-count calculator such as GitVersion, whose preview number counts every commit reachable from `HEAD`. MinVer therefore tolerates merge commits: a merge commit contributes exactly one to height, however many commits the pull request contained. What breaks the one-pull-request-one-step contract is rebase merging, which replays every branch commit onto `main` as a first-parent commit.
 

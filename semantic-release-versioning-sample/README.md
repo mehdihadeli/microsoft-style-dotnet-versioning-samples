@@ -21,7 +21,7 @@ Use this option when the same release process must coordinate .NET output with o
 
 [`scripts/calculate-version.mjs`](scripts/calculate-version.mjs) calls the semantic-release API in dry-run mode and reads `branches`, `tagFormat`, and the configured options of `commit-analyzer` from that file, so editing the config changes what the adapter calculates. Only the analyzer is loaded, because it alone decides a version; the release-notes, exec, and github plugins act on a release instead of calculating one. That also keeps the calculation offline: the adapter needs no token.
 
-See the official [configuration guide](https://semantic-release.org/usage/configuration), [workflow configuration](https://semantic-release.org/usage/workflow-configuration/), and [GitHub Actions guide](https://semantic-release.org/recipes/ci-configurations/github-actions/).
+See the official [configuration guide](https://semantic-release.org/usage/configuration), [workflow configuration](https://semantic-release.org/usage/workflow-configuration/), and [GitHub Actions guide](https://semantic-release.org/recipes/ci-configurations/github-actions/)..
 
 ## Version sources
 

@@ -15,9 +15,6 @@ on:
 permissions:
   contents: read
 
-env:
-  ARCADE_FEED: https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-eng/nuget/v3/index.json
-
 jobs:
   build-test:
     name: Arcade build and test
@@ -32,7 +29,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet nuget add source "$ARCADE_FEED" --name dotnet-eng
+      # The dotnet-eng feed is committed in arcade-versioning-sample/NuGet.config, which
+      # NuGet discovers from the project directory. Adding it here as well fails because the
+      # source name already exists.
       - run: dotnet restore tests/arcade-versioning-sample.Tests/arcade-versioning-sample.Tests.csproj
       - run: dotnet test tests/arcade-versioning-sample.Tests/arcade-versioning-sample.Tests.csproj --configuration Release --no-restore
 
@@ -54,6 +53,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # The adapter runs `dotnet msbuild` to read the version Arcade calculates.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
       - name: Calculate version
         id: version
         shell: bash
@@ -77,7 +80,6 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet nuget add source "$ARCADE_FEED" --name dotnet-eng
       - run: dotnet restore src/arcade-versioning-sample.csproj
       - run: dotnet publish src/arcade-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }} -p:ContinuousIntegrationBuild=true
       - run: zip -r "arcade-${{ needs.calculate-version.outputs.version }}.zip" publish

@@ -1,0 +1,22 @@
+<Project>
+
+  <!--
+    Sdk.targets imports Arcade's BeforeCommonTargets.targets, which imports
+    Version.BeforeCommonTargets.targets - the targets that assemble Version from
+    VersionPrefix, PreReleaseVersionLabel, PreReleaseVersionIteration, and OfficialBuildId.
+  -->
+  <Import Project="Sdk.targets" Sdk="Microsoft.DotNet.Arcade.Sdk" />
+
+  <!--
+    Every Arcade official build is stamped with SHORT_DATE and the build revision, so an RC
+    derived from inputs alone would be 1.0.0-rc.1.26051.7. A release tag is already a complete
+    version, so the adapter passes it through ReleaseVersion and it is used exactly as written.
+    This PropertyGroup runs after the import above, which is why it can replace what the SDK
+    calculated. Preview versions stay stamped because no tag identifies them.
+  -->
+  <PropertyGroup Condition="'$(ReleaseVersion)' != ''">
+    <Version>$(ReleaseVersion)</Version>
+    <PackageVersion>$(ReleaseVersion)</PackageVersion>
+  </PropertyGroup>
+
+</Project>

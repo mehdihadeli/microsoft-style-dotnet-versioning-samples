@@ -5,11 +5,11 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" PrivateAssets="all" />
-  </ItemGroup>
+  <!--
+    xunit, xunit.runner.visualstudio, and Microsoft.NET.Test.Sdk come from the Arcade SDK
+    (XUnit.targets and Tests.props). Referencing them here as well pins different versions, and
+    NuGet fails the restore on the resulting downgrade.
+  -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\arcade-versioning-sample.csproj" />
   </ItemGroup>

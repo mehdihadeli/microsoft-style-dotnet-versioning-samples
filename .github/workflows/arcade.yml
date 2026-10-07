@@ -79,7 +79,7 @@ jobs:
           dotnet-version: 10.0.x
       - run: dotnet nuget add source "$ARCADE_FEED" --name dotnet-eng
       - run: dotnet restore src/arcade-versioning-sample.csproj
-      - run: dotnet publish src/arcade-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }} -p:OfficialBuild=${{ startsWith(github.ref, 'refs/tags/v') }}
+      - run: dotnet publish src/arcade-versioning-sample.csproj --configuration Release --no-restore --output publish -p:Version=${{ needs.calculate-version.outputs.version }} -p:ContinuousIntegrationBuild=true
       - run: zip -r "arcade-${{ needs.calculate-version.outputs.version }}.zip" publish
       - name: Publish Arcade release
         uses: release-drafter/release-drafter@v7

@@ -1,0 +1,11 @@
+<Project>
+
+  <!--
+    Evaluation-only project. A Directory.Build.props is not imported for a project without an
+    SDK, so the two imports below stand in for the default toolset chain. scripts/calculate-version.sh
+    queries Version on this project so Arcade, not the shell, computes the version.
+  -->
+  <Import Project="Directory.Build.props" />
+  <Import Project="Directory.Build.targets" />
+
+</Project>

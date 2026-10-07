@@ -1,14 +1,18 @@
 <Project>
+
+  <!--
+    Arcade requires its Sdk.props to be imported before any repository customization so the
+    toolset defaults, eng/Versions.props, and the version targets are in place first.
+  -->
+  <Import Project="Sdk.props" Sdk="Microsoft.DotNet.Arcade.Sdk" />
+
   <PropertyGroup>
+    <!--
+      Eng/Versions.props owns the version inputs. Everything else on Version, PackageVersion,
+      and OfficialBuild is produced by Arcade's version targets, so this file has nothing left
+      to compute.
+    -->
     <RepositoryRoot Condition="'$(RepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</RepositoryRoot>
-    <VersionPrefix Condition="'$(VersionPrefix)' == ''">1.0.0</VersionPrefix>
-    <ReleasePhase Condition="'$(ReleasePhase)' == ''">preview</ReleasePhase>
-    <ReleaseCandidateNumber Condition="'$(ReleaseCandidateNumber)' == ''">1</ReleaseCandidateNumber>
-    <Version Condition="'$(Version)' == '' and '$(ReleasePhase)' == 'rc'">$(VersionPrefix)-rc.$(ReleaseCandidateNumber)</Version>
-    <Version Condition="'$(Version)' == '' and '$(ReleasePhase)' == 'stable'">$(VersionPrefix)</Version>
-    <Version Condition="'$(Version)' == '' and '$(GITHUB_RUN_NUMBER)' != ''">$(VersionPrefix)-preview.$(GITHUB_RUN_NUMBER)</Version>
-    <Version Condition="'$(Version)' == ''">$(VersionPrefix)-preview.0</Version>
-    <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
-    <OfficialBuild Condition="'$(OfficialBuild)' == '' and '$(GITHUB_REF_TYPE)' == 'tag'">true</OfficialBuild>
   </PropertyGroup>
+
 </Project>

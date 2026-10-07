@@ -12,7 +12,7 @@ The important difference from the other samples is that **Arcade has no Git-awar
 2. The build system supplies `OfficialBuildId` (the CI build number, `<yyyyMMdd>.<revision>`).
 3. Arcade's targets turn those inputs into `Version`.
 
-Something still has to map Git history onto those inputs, so this sample keeps [`scripts/calculate-version.sh`](scripts/calculate-version.sh) as the adapter. The adapter derives the inputs and reads the version back; Arcade owns the format.
+Something still has to map Git history onto those inputs, so this sample keeps [`scripts/calculate-version.sh`](scripts/calculate-version.sh) as the adapter. The adapter derives the inputs and reads the version back; Arcade owns the format..
 
 ## Configuration
 

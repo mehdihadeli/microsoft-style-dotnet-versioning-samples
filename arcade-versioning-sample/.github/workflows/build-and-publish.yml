@@ -45,6 +45,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+<<<<<<< HEAD
+=======
+      - name: Configure Arcade feed
+        run: dotnet nuget add source "$ARCADE_FEED" --name dotnet-eng
+>>>>>>> origin/main
       - name: Calculate version
         id: version
         shell: bash

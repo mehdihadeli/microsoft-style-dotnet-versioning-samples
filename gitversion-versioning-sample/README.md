@@ -91,7 +91,7 @@ Example release scenario:
 6. Tag the approved `main` commit `v1.0.0`. CI publishes stable version `1.0.0`.
 7. Squash-merge a `feat:` into `main`. GitVersion calculates `1.1.0-preview.1` and the next train begins.
 
-Only release candidates and the stable release receive Git tags. Preview identity comes from GitVersion, but preview publication remains untagged.
+Only release candidates and the stable release receive Git tags. Preview identity comes from GitVersion, but preview publication remains untagged..
 
 The shared command scenario:
 

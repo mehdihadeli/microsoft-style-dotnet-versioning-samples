@@ -35,8 +35,8 @@ CI additionally appends `.{yy}{julian}.{run_number}` to prerelease versions (see
 ## Project structure
 
 - [`src/`](src/) contains the Web API.
-- [`tests/gitversion-versioning-sample.Tests/`](tests/gitversion-versioning-sample.Tests/) contains isolated Git-history integration tests that run the real GitVersion CLI.
-- [`scripts/calculate-version.sh`](scripts/calculate-version.sh) is the CI formatter that appends the prerelease build suffix.
+- [`tests/gitversion-versioning-sample.Tests/`](tests/gitversion-versioning-sample.Tests/) contains real GitVersion Git-history tests that run the script, the CLI, and the squash-merge guard against temporary repositories.
+- [`scripts/calculate-version.sh`](scripts/calculate-version.sh) reads the release tag at `HEAD`, asks GitVersion for `SemVer`, and appends the prerelease build suffix.
 - [`GitVersion.yml`](GitVersion.yml) stays at the sample root so the CLI discovers it.
 - [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh) fails the version job when a merge commit lands on `main`.
 - [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml) builds, calculates the version, and publishes.
@@ -55,13 +55,13 @@ In CI the jump is easy to miss as a bug: one two-commit pull request merged with
 
 Configure the repository to allow squash merges only: **Settings → General → Pull Requests** → uncheck *Allow merge commits* and *Allow rebase merging*, check *Allow squash merging*, and set the default to *Squash*.
 
-The `calculate-version` job runs [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh) and fails the build when `HEAD` is a merge commit, so silent drift is caught before a release is published. The guard allows a root commit and skips release-tag builds, because a tagged build takes its identity from the tag. The tests perform `git merge --squash` to verify one new commit per accepted pull request.
+The `calculate-version` job runs [`.github/scripts/require-squash-merge.sh`](.github/scripts/require-squash-merge.sh) and fails the build when `HEAD` is a merge commit, so silent drift is caught before a release is published. The guard allows a root commit and skips release-tag builds, because a tagged build takes its identity from the tag. The tests squash-merge by default and also cover the merge-commit path: one test shows a five-commit merge commit taking `preview.1` to `preview.7`, and another runs the guard to prove it accepts a squash merge, rejects a merge commit, and steps aside for a release tag.
 
 Squash merges matter for the same reason in every Git-height tool in this repository, not only GitVersion.
 
 ## CI scenario
 
-The `calculate-version` job installs GitVersion `6.8.2` and runs [`scripts/calculate-version.sh`](scripts/calculate-version.sh) in its `github-output` mode. The script reads a release tag at `HEAD` when one exists, otherwise it asks GitVersion for `SemVer`. It then appends `.{yy}{julian}.{run_number}` (for example `.26123.42`) to prerelease versions so every CI run is unique, and reports the deployment environment. Stable versions pass through unchanged.
+The `calculate-version` job installs GitVersion `6.8.2` and runs [`scripts/calculate-version.sh`](scripts/calculate-version.sh) in its `github-output` mode. The script reads a release tag at `HEAD` when one exists, otherwise it asks GitVersion for `SemVer`. It reports the calculated version, the assembly version, the informational version, the deployment environment, and the commit. It then appends `.{yy}{julian}.{run_number}` (for example `.26123.42`) to prerelease versions so every CI run is unique. Stable versions pass through unchanged.
 
 | Ref                          | Version                    | Environment  |
 | ---------------------------- | -------------------------- | ------------ |
@@ -69,9 +69,9 @@ The `calculate-version` job installs GitVersion `6.8.2` and runs [`scripts/calcu
 | `refs/tags/v1.0.0-rc.1`      | `1.0.0-rc.1.26123.43`      | `staging`    |
 | `refs/tags/v1.0.0`           | `1.0.0`                    | `production` |
 
-The suffix uses `date -u +%y%j` (two-digit year and Julian day) plus `GITHUB_RUN_NUMBER`, matching the nerdbank-versioning sample. The `-preview.0` baseline never publishes, so it keeps environment `none`.
+The suffix uses `date -u +%y%j` (two-digit year and Julian day) plus `GITHUB_RUN_NUMBER`, matching the nerdbank-versioning sample. The `-preview.0` baseline never publishes, so it keeps environment `none`. Only `rc` and stable tags are release identities; any other tag ref fails the job instead of silently producing a preview artifact for a tagged commit.
 
-The publish job consumes that one value:
+The publish job consumes the version the script reports:
 
 ```text
 dotnet publish ... -p:Version=<calculated-version>
@@ -144,15 +144,18 @@ git push -u origin feature/add-authorization
 
 ## Local validation
 
-```powershell
+```bash
 dotnet restore tests/gitversion-versioning-sample.Tests/gitversion-versioning-sample.Tests.csproj
 dotnet tool install --tool-path .tools/gitversion GitVersion.Tool --version 6.8.2
-$version = .tools/gitversion/dotnet-gitversion /showvariable SemVer
-dotnet build src/gitversion-versioning-sample.csproj -p:Version=$version
+bash scripts/calculate-version.sh                        # reads the tag at HEAD, else GitVersion
+bash scripts/calculate-version.sh github-output          # reads GITHUB_RUN_NUMBER
+dotnet build src/gitversion-versioning-sample.csproj -p:Version=$(bash scripts/calculate-version.sh)
 dotnet test tests/gitversion-versioning-sample.Tests/gitversion-versioning-sample.Tests.csproj
 ```
 
-The complete workflow is in [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml), and the version rules are in [`GitVersion.yml`](GitVersion.yml).
+On Windows the installed executable is `dotnet-gitversion.exe`, and the script finds it without extra configuration. The tests install the same CLI into a temporary repository and run the real script, so no local installation is needed to run them.
+
+The complete workflow is in [`.github/workflows/build-and-publish.yml`](.github/workflows/build-and-publish.yml), and the version rules are in [`GitVersion.yml`](GitVersion.yml). [`scripts/calculate-version.sh`](scripts/calculate-version.sh) is the only caller of the CLI, so the test suite checks that both workflows run the script instead of calling the CLI directly and that they declare all five of its outputs. Preview and tagged scenarios assert the script's version and the CLI's version agree, so the script cannot invent a version the tool did not calculate.
 
 ## Tradeoffs
 

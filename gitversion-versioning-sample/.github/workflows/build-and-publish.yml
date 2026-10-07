@@ -32,6 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      assembly_version: ${{ steps.version.outputs.assembly_version }}
+      informational_version: ${{ steps.version.outputs.informational_version }}
+      environment: ${{ steps.version.outputs.environment }}
+      commit: ${{ steps.version.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,9 +54,7 @@ jobs:
         env:
           GITVERSION_CLI: ${{ runner.temp }}/gitversion/dotnet-gitversion
         run: |
-          version="$(bash scripts/calculate-version.sh github-output | sed -n 's/^version=//p')"
-          echo "Calculated version: $version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          bash scripts/calculate-version.sh github-output | tee -a "$GITHUB_OUTPUT"
 
   publish:
     name: Publish application and release notes
